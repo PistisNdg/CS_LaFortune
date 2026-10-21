@@ -1,0 +1,433 @@
+// Prisma schema for CSF Présence
+// Database: PostgreSQL (Neon via Vercel)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================
+// Rôles et Énumérations
+// ============================================
+
+enum Role {
+  DIRECTION
+  ENSEIGNANT
+  PARENT
+  SURVEILLANT
+}
+
+enum Niveau {
+  MATERNELLE
+  PRIMAIRE
+  SECONDAIRE
+}
+
+enum StatutEleve {
+  ACTIF
+  SUSPENDU
+  SORTI
+}
+
+enum LienParent {
+  PERE
+  MERE
+  TUTEUR
+  AUTRE
+}
+
+enum CanalNotification {
+  SMS
+  WHATSAPP
+  EMAIL
+  AUCUN
+}
+
+enum TypeJour {
+  COURS
+  FERIE
+  VACANCES
+  EXAMEN
+}
+
+enum StatutPresence {
+  PRESENT
+  RETARD
+  ABSENT
+  ABSENT_JUSTIFIE
+  EXCLU
+}
+
+enum SourcePresence {
+  SCAN
+  MANUEL
+  IMPORT
+}
+
+enum ResultatScan {
+  VALIDE
+  DOUBLON
+  QR_INVALIDE
+  ELEVE_INACTIF
+  HORS_CALENDRIER
+}
+
+enum StatutJustificatif {
+  EN_ATTENTE
+  ACCEPTE
+  REFUSE
+}
+
+enum StatutNotification {
+  EN_FILE
+  ENVOYE
+  ECHEC
+}
+
+// ============================================
+// Années Scolaires
+// ============================================
+
+model AnneeScolaire {
+  id          String   @id @default(cuid())
+  libelle     String   @unique // "2026-2027"
+  dateDebut   DateTime
+  dateFin     DateTime
+  estActive   Boolean  @default(false)
+  
+  classes     Classe[]
+  affectations Affectation[]
+  presences   Presence[]
+  calendrier  Calendrier[]
+  reglesHoraires RegleHoraire[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("annees_scolaires")
+}
+
+// ============================================
+// Classes
+// ============================================
+
+model Classe {
+  id              String   @id @default(cuid())
+  anneeId         String
+  niveau          Niveau
+  nom             String   // "6e Primaire A"
+  section         String?  // Optionnel pour secondaire
+  titulaireEnsId  String?
+  effectifMax     Int      @default(40)
+  
+  annee           AnneeScolaire @relation(fields: [anneeId], references: [id], onDelete: Cascade)
+  titulaire       Enseignant?    @relation("ClasseTitulaire", fields: [titulaireEnsId], references: [id])
+  eleves          Eleve[]
+  affectations    Affectation[]
+  presences       Presence[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([anneeId, nom])
+  @@map("classes")
+}
+
+// ============================================
+// Élèves
+// ============================================
+
+model Eleve {
+  id              String   @id @default(cuid())
+  matricule       String   @unique // "CSF-2026-00001"
+  nom             String
+  postnom         String
+  prenom          String
+  sexe            String   // "M" ou "F"
+  dateNaissance   DateTime
+  classeId        String
+  statut          StatutEleve @default(ACTIF)
+  dateInscription DateTime @default(now())
+  qrPublicId      String   @unique // ID aléatoire pour QR (≥12 caractères)
+  photoRef        String?  // URL dans Blob
+  
+  classe          Classe   @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  liensParent     LienParentEleve[]
+  presences       Presence[]
+  scans           Scan[]
+  justificatifs   Justificatif[]
+  notifications   Notification[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("eleves")
+}
+
+// ============================================
+// Parents
+// ============================================
+
+model Parent {
+  id              String   @id @default(cuid())
+  nom             String
+  postnom         String
+  prenom          String
+  lien            LienParent
+  telephoneE164   String?  // Format E.164
+  whatsappE164    String?  // Format E.164
+  email           String?  @unique
+  canalPrefere    CanalNotification @default(AUCUN)
+  
+  liensEleve      LienParentEleve[]
+  justificatifs   Justificatif[] @relation("JustificatifsDeposes")
+  notifications   Notification[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("parents")
+}
+
+// ============================================
+// Liens Parent-Élève
+// ============================================
+
+model LienParentEleve {
+  parentId        String
+  eleveId         String
+  estContactPrincipal Boolean @default(false)
+  
+  parent          Parent   @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  eleve           Eleve    @relation(fields: [eleveId], references: [id], onDelete: Cascade)
+  
+  @@id([parentId, eleveId])
+  @@map("liens_parent_eleve")
+}
+
+// ============================================
+// Enseignants
+// ============================================
+
+model Enseignant {
+  id                String   @id @default(cuid())
+  nom               String
+  postnom           String
+  prenom            String
+  telephoneE164      String?  // Format E.164
+  email             String?  @unique
+  matierePrincipale String?
+  
+  classesTitulaire  Classe[] @relation("ClasseTitulaire")
+  affectations      Affectation[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@map("enseignants")
+}
+
+// ============================================
+// Affectations Enseignant-Classe
+// ============================================
+
+model Affectation {
+  enseignantId     String
+  classeId         String
+  anneeId          String
+  
+  enseignant       Enseignant     @relation(fields: [enseignantId], references: [id], onDelete: Cascade)
+  classe           Classe         @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  annee            AnneeScolaire  @relation(fields: [anneeId], references: [id], onDelete: Cascade)
+  
+  @@id([enseignantId, classeId, anneeId])
+  @@map("affectations")
+}
+
+// ============================================
+// Utilisateurs (Auth)
+// ============================================
+
+model Utilisateur {
+  id                  String   @id @default(cuid())
+  email               String   @unique
+  passwordHash        String   // bcrypt hash
+  role                Role
+  lieAId              String?  // ID de l'entité liée (Parent, Enseignant, etc.)
+  actif               Boolean  @default(true)
+  derniereConnexionUtc DateTime?
+  forceChangementMdp  Boolean  @default(false)
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  @@map("utilisateurs")
+}
+
+// ============================================
+// Calendrier Scolaire
+// ============================================
+
+model Calendrier {
+  date        DateTime @id
+  type        TypeJour
+  libelle     String?
+  anneeId     String
+  
+  annee       AnneeScolaire @relation(fields: [anneeId], references: [id], onDelete: Cascade)
+  
+  @@map("calendrier")
+}
+
+// ============================================
+// Règles Horaires par Niveau
+// ============================================
+
+model RegleHoraire {
+  id                String   @id @default(cuid())
+  niveau            Niveau
+  heureOuverture    String   // "12:30:00"
+  heureLimiteRetard String   // "13:00:00"
+  heureLimiteAbsence String  // "14:00:00"
+  dateEffet         DateTime @default(now())
+  anneeId           String
+  
+  annee             AnneeScolaire @relation(fields: [anneeId], references: [id], onDelete: Cascade)
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@map("regles_horaires")
+}
+
+// ============================================
+// Présences
+// ============================================
+
+model Presence {
+  id                String         @id @default(cuid())
+  date              DateTime       // Date locale Kinshasa
+  eleveId           String
+  classeId          String
+  anneeId           String
+  statut            StatutPresence
+  heureArriveeLocale String?       // "13:15:00"
+  minutesRetard     Int?
+  source            SourcePresence @default(SCAN)
+  scanId            String?
+  saisiParUserId    String?
+  
+  eleve             Eleve          @relation(fields: [eleveId], references: [id], onDelete: Cascade)
+  classe            Classe         @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  annee             AnneeScolaire  @relation(fields: [anneeId], references: [id], onDelete: Cascade)
+  scan              Scan?          @relation(fields: [scanId], references: [id])
+  
+  @@unique([eleveId, date])
+  @@map("presences")
+}
+
+// ============================================
+// Scans QR
+// ============================================
+
+model Scan {
+  id                      String        @id @default(cuid())
+  horodatageUtc           DateTime      @default(now())
+  horodatageLocal         DateTime      @default(now())
+  eleveId                 String?
+  appareilId              String?       // ID de l'appareil de scan
+  userId                  String?       // Utilisateur qui a scanné
+  resultat                ResultatScan
+  synchroniseApresHorsLigne Boolean     @default(false)
+  
+  eleve                   Eleve?        @relation(fields: [eleveId], references: [id], onDelete: SetNull)
+  presences               Presence[]
+  
+  @@map("scans")
+}
+
+// ============================================
+// Justificatifs d'Absence
+// ============================================
+
+model Justificatif {
+  id                String            @id @default(cuid())
+  eleveId           String
+  dateDebut         DateTime
+  dateFin           DateTime
+  motif             String
+  statut            StatutJustificatif @default(EN_ATTENTE)
+  deposeParParentId String?
+  traiteParUserId   String?
+  commentaire       String?
+  pieceJointeUrl   String?           // URL dans Blob
+  
+  eleve             Eleve             @relation(fields: [eleveId], references: [id], onDelete: Cascade)
+  deposePar         Parent?           @relation("JustificatifsDeposes", fields: [deposeParParentId], references: [id])
+  
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  @@map("justificatifs")
+}
+
+// ============================================
+// Notifications
+// ============================================
+
+model Notification {
+  id              String            @id @default(cuid())
+  parentId        String
+  eleveId         String
+  type            String            // "ARRIVEE", "RETARD", "ABSENCE", "JUSTIFICATIF"
+  canal           CanalNotification
+  statut          StatutNotification @default(EN_FILE)
+  horodatageUtc   DateTime          @default(now())
+  erreur          String?
+  
+  parent          Parent            @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  eleve           Eleve             @relation(fields: [eleveId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  
+  @@map("notifications")
+}
+
+// ============================================
+// Journal d'Audit
+// ============================================
+
+model JournalAudit {
+  id            String   @id @default(cuid())
+  horodatageUtc DateTime @default(now())
+  userId        String?
+  action        String   // "LOGIN", "SCAN", "EXPORT", "IMPORT", etc.
+  entite        String   // "Eleve", "Classe", "Presence", etc.
+  entiteId      String?
+  ipHash        String?
+  detailsJson   Json?
+  
+  @@map("journal_audit")
+}
+
+// ============================================
+// Paramètres
+// ============================================
+
+model Parametre {
+  id          String   @id @default(cuid())
+  cle         String   @unique
+  valeur      String
+  description String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("parametres")
+}
