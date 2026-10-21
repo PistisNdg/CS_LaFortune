@@ -324,40 +324,44 @@ async function main() {
   console.log(`   - Parent: ${parents[0].email} / Parent123!`);
 
   // Créer des présences de démonstration
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const presenceDay = new Date();
+  presenceDay.setHours(0, 0, 0, 0);
   
   await prisma.presence.createMany({
     data: [
       {
-        date: today,
+        date: presenceDay,
         eleveId: eleves[0].id,
         classeId: classes[2].id,
+        anneeId: anneeScolaire.id,
         statut: StatutPresence.PRESENT,
         heureArriveeLocale: '12:45:00',
         source: SourcePresence.SCAN,
       },
       {
-        date: today,
+        date: presenceDay,
         eleveId: eleves[1].id,
         classeId: classes[1].id,
+        anneeId: anneeScolaire.id,
         statut: StatutPresence.PRESENT,
         heureArriveeLocale: '12:50:00',
         source: SourcePresence.SCAN,
       },
       {
-        date: today,
+        date: presenceDay,
         eleveId: eleves[2].id,
         classeId: classes[3].id,
+        anneeId: anneeScolaire.id,
         statut: StatutPresence.RETARD,
         heureArriveeLocale: '13:15:00',
         minutesRetard: 15,
         source: SourcePresence.SCAN,
       },
       {
-        date: today,
+        date: presenceDay,
         eleveId: eleves[3].id,
         classeId: classes[3].id,
+        anneeId: anneeScolaire.id,
         statut: StatutPresence.ABSENT,
         source: SourcePresence.MANUEL,
       },

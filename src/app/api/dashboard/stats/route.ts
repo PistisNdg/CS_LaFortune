@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
 import { startOfKinshasaDayUtc } from '@/lib/time-kinshasa';
+import { unwrapOne } from '@/lib/supabase-relations';
 
 export async function GET() {
   try {
@@ -53,14 +54,8 @@ export async function GET() {
       .limit(8);
 
     const scans = (recentScans ?? []).map((s) => {
-      const el = s.eleve as {
-        prenom: string;
-        nom: string;
-        postnom: string;
-        classe?: { nom: string } | { nom: string }[];
-      } | null;
-      const classeRaw = el?.classe;
-      const classeNom = Array.isArray(classeRaw) ? classeRaw[0]?.nom : classeRaw?.nom;
+      const el = unwrapOne(s.eleve as { prenom: string; nom: string; postnom: string; classe?: unknown }[] | { prenom: string; nom: string; postnom: string; classe?: unknown } | null);
+      const classeNom = unwrapOne(el?.classe as { nom: string } | { nom: string }[] | null)?.nom;
       const time = new Date(s.horodatage_local).toLocaleTimeString('fr-FR', {
         hour: '2-digit',
         minute: '2-digit',

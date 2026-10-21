@@ -16,9 +16,10 @@ const enseignantSchema = z.object({
 // PUT - Modifier un enseignant
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
@@ -39,7 +40,7 @@ export async function PUT(
     const { data: enseignant, error: updateError } = await supabase
       .from('enseignants')
       .update(result.data)
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 
@@ -74,9 +75,10 @@ export async function PUT(
 // DELETE - Supprimer un enseignant
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
@@ -88,7 +90,7 @@ export async function DELETE(
     const { data: affectations, error: countError } = await supabase
       .from('affectations')
       .select('enseignant_id')
-      .eq('enseignant_id', params.id);
+      .eq('enseignant_id', id);
 
     if (countError) {
       console.error('Erreur Supabase:', countError);
@@ -108,7 +110,7 @@ export async function DELETE(
     const { error: deleteError } = await supabase
       .from('enseignants')
       .delete()
-      .eq('id', params.id);
+      .eq('id', id);
 
     if (deleteError) {
       console.error('Erreur Supabase:', deleteError);
@@ -122,7 +124,7 @@ export async function DELETE(
     await supabase.from('journal_audit').insert({
       action: 'DELETE',
       entite: 'Enseignant',
-      entite_id: params.id,
+      entite_id: id,
       user_id: session.userId,
       ip_hash: hashIp(request.headers.get('x-forwarded-for') || 'unknown'),
     });

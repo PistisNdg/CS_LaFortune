@@ -4,6 +4,7 @@ import { getSession } from '@/lib/auth';
 import { requirePermission, type UserRole } from '@/lib/rbac';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
 import { startOfKinshasaDayUtc, toKinshasaDateKey } from '@/lib/time-kinshasa';
+import { unwrapOne } from '@/lib/supabase-relations';
 
 export async function GET() {
   try {
@@ -51,8 +52,13 @@ export async function GET() {
     ]);
 
     for (const row of data ?? []) {
-      const el = row.eleve as { matricule: string; nom: string; prenom: string } | null;
-      const cl = row.classe as { nom: string } | null;
+      const el = unwrapOne(
+        row.eleve as
+          | { matricule: string; nom: string; prenom: string }
+          | { matricule: string; nom: string; prenom: string }[]
+          | null
+      );
+      const cl = unwrapOne(row.classe as { nom: string } | { nom: string }[] | null);
       ws.addRow([
         toKinshasaDateKey(new Date(row.date)),
         el?.matricule,

@@ -16,9 +16,10 @@ const regleUpdateSchema = z.object({
 // PUT - Modifier une règle horaire
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
@@ -39,7 +40,7 @@ export async function PUT(
     const { data: regle, error: updateError } = await supabase
       .from('regles_horaires')
       .update(result.data)
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 
@@ -74,9 +75,10 @@ export async function PUT(
 // DELETE - Supprimer une règle horaire
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
@@ -87,7 +89,7 @@ export async function DELETE(
     const { error: deleteError } = await supabase
       .from('regles_horaires')
       .delete()
-      .eq('id', params.id);
+      .eq('id', id);
 
     if (deleteError) {
       console.error('Erreur Supabase:', deleteError);
@@ -101,7 +103,7 @@ export async function DELETE(
     await supabase.from('journal_audit').insert({
       action: 'DELETE',
       entite: 'RegleHoraire',
-      entite_id: params.id,
+      entite_id: id,
       user_id: session.userId,
       ip_hash: hashIp(request.headers.get('x-forwarded-for') || 'unknown'),
     });

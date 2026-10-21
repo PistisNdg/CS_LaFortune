@@ -8,6 +8,7 @@ import {
   startOfKinshasaDayUtc,
   toKinshasaDateKey,
 } from '@/lib/time-kinshasa';
+import { unwrapOne } from '@/lib/supabase-relations';
 import { z } from 'zod';
 
 const scanSchema = z.object({
@@ -91,12 +92,19 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const classe = eleve.classe as {
-      id: string;
-      nom: string;
-      niveau: string;
-      annee_id: string;
-    };
+    const classe = unwrapOne(
+      eleve.classe as
+        | { id: string; nom: string; niveau: string; annee_id: string }
+        | { id: string; nom: string; niveau: string; annee_id: string }[]
+        | null
+    );
+
+    if (!classe) {
+      return NextResponse.json({
+        resultat: 'ERREUR_SYSTEME',
+        message: 'Classe introuvable pour cet élève',
+      });
+    }
 
     const { data: calendrier } = await supabase
       .from('calendrier')

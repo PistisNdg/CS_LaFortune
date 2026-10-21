@@ -18,9 +18,10 @@ const eleveSchema = z.object({
 // PUT - Modifier un élève
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
@@ -41,7 +42,7 @@ export async function PUT(
     const { data: eleve, error: updateError } = await supabase
       .from('eleves')
       .update(result.data)
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 
@@ -76,9 +77,10 @@ export async function PUT(
 // DELETE - Supprimer un élève
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
@@ -90,7 +92,7 @@ export async function DELETE(
     const { data: presences, error: countError } = await supabase
       .from('presences')
       .select('id')
-      .eq('eleve_id', params.id);
+      .eq('eleve_id', id);
 
     if (countError) {
       console.error('Erreur Supabase:', countError);
@@ -110,7 +112,7 @@ export async function DELETE(
     const { error: deleteError } = await supabase
       .from('eleves')
       .delete()
-      .eq('id', params.id);
+      .eq('id', id);
 
     if (deleteError) {
       console.error('Erreur Supabase:', deleteError);
@@ -124,7 +126,7 @@ export async function DELETE(
     await supabase.from('journal_audit').insert({
       action: 'DELETE',
       entite: 'Eleve',
-      entite_id: params.id,
+      entite_id: id,
       user_id: session.userId,
       ip_hash: hashIp(request.headers.get('x-forwarded-for') || 'unknown'),
     });
