@@ -54,8 +54,13 @@ export async function GET() {
       .limit(8);
 
     const scans = (recentScans ?? []).map((s) => {
-      const el = unwrapOne(s.eleve as { prenom: string; nom: string; postnom: string; classe?: unknown }[] | { prenom: string; nom: string; postnom: string; classe?: unknown } | null);
-      const classeNom = unwrapOne(el?.classe as { nom: string } | { nom: string }[] | null)?.nom;
+      const el = unwrapOne<{
+        prenom: string;
+        nom: string;
+        postnom: string;
+        classe?: unknown;
+      }>(s.eleve);
+      const classeNom = unwrapOne<{ nom: string }>(el?.classe)?.nom;
       const time = new Date(s.horodatage_local).toLocaleTimeString('fr-FR', {
         hour: '2-digit',
         minute: '2-digit',

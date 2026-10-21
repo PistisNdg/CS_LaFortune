@@ -92,12 +92,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const classe = unwrapOne(
-      eleve.classe as
-        | { id: string; nom: string; niveau: string; annee_id: string }
-        | { id: string; nom: string; niveau: string; annee_id: string }[]
-        | null
-    );
+    const classe = unwrapOne<{
+      id: string;
+      nom: string;
+      niveau: string;
+      annee_id: string;
+    }>(eleve.classe);
 
     if (!classe) {
       return NextResponse.json({
